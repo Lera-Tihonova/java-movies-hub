@@ -3,34 +3,40 @@ package ru.practicum.moviehub.store;
 import ru.practicum.moviehub.model.Movie;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class MoviesStore {
-    private final Map<Long, Movie> storage = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
+    private final Map<Integer, Movie> movies = new HashMap<>();
+    private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    public List<Movie> getAll() {
-        return new ArrayList<>(storage.values());
+    public List<Movie> getAllMovies() {
+        return new ArrayList<>(movies.values());
     }
 
-    public Optional<Movie> getById(Long id) {
-        return Optional.ofNullable(storage.get(id));
+    public Movie addMovie(Movie movie) {
+        int id = idGenerator.getAndIncrement();
+        movie.setId(id);
+        movies.put(id, movie);
+        return movie;
     }
 
-    public Movie add(Movie movie) {
-        Long id = idGenerator.getAndIncrement();
-        Movie newMovie = new Movie(id, movie.getTitle(), movie.getYear(), movie.getGenre());
-        storage.put(id, newMovie);
-        return newMovie;
+    public Movie getMovieById(int id) {
+        return movies.get(id);
     }
 
-    public boolean delete(Long id) {
-        return storage.remove(id) != null;
+    public boolean deleteMovie(int id) {
+        return movies.remove(id) != null;
+    }
+
+    public List<Movie> getMoviesByYear(int year) {
+        return movies.values().stream()
+                .filter(movie -> movie.getYear() == year)
+                .collect(Collectors.toList());
     }
 
     public void clear() {
-        storage.clear();
+        movies.clear();
         idGenerator.set(1);
     }
 }

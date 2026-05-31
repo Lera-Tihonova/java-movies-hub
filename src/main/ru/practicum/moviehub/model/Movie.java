@@ -1,25 +1,20 @@
 package ru.practicum.moviehub.model;
 
-import java.util.Objects;
-
 public class Movie {
-    private Long id;
+    private Integer id;
     private String title;
     private int year;
-    private String genre;
 
-    public Movie(Long id, String title, int year, String genre) {
-        this.id = id;
+    public Movie(String title, int year) {
         this.title = title;
         this.year = year;
-        this.genre = genre;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 
@@ -37,36 +32,5 @@ public class Movie {
 
     public void setYear(int year) {
         this.year = year;
-    }
-
-    public String getGenre() {
-        return genre;
-    }
-
-    public void setGenre(String genre) {
-        this.genre = genre;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Movie movie = (Movie) o;
-        return year == movie.year && Objects.equals(id, movie.id) && Objects.equals(title, movie.title) && Objects.equals(genre, movie.genre);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, title, year, genre);
-    }
-
-    @Override
-    public String toString() {
-        return "Movie{" +
-                "id=" + id +
-                ", title='" + title + '\'' +
-                ", year=" + year +
-                ", genre='" + genre + '\'' +
-                '}';
     }
 }

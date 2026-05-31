@@ -1,19 +1,21 @@
 package ru.practicum.moviehub.api;
 
-public class ErrorResponse {
-    private final String error;
-    private final String description;
+import java.util.List;
 
-    public ErrorResponse(String error, String description) {
+public class ErrorResponse {
+    private String error;
+    private List<String> details;
+
+    public ErrorResponse(String error, List<String> details) {
         this.error = error;
-        this.description = description;
+        this.details = details;
     }
 
     public String getError() {
         return error;
     }
 
-    public String getDescription() {
-        return description;
+    public List<String> getDetails() {
+        return details;
     }
 }
