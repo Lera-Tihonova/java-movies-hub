@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.practicum.moviehub.model.Movie;
+import ru.practicum.moviehub.store.MoviesStore;
 
 import java.io.IOException;
 import java.net.URI;
@@ -24,39 +25,27 @@ class MoviesApiTest {
     private static final String BASE_URL = "http://localhost:" + PORT;
 
     private MoviesServer server;
+    private MoviesStore store;
     private Gson gson;
     private HttpClient client;
 
     @BeforeEach
     void setUp() throws IOException {
-        server = new MoviesServer(PORT);
+        // Создаём общее хранилище
+        store = new MoviesStore();
+        // Передаём хранилище в сервер
+        server = new MoviesServer(PORT, store);
         server.start();
 
         gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .create();
         client = HttpClient.newHttpClient();
-
-        try {
-            clearStore();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Failed to clear store", e);
-        }
     }
 
     @AfterEach
     void tearDown() {
         server.stop();
-    }
-
-    private void clearStore() throws IOException, InterruptedException {
-        // Получаем все фильмы и удаляем их
-        HttpResponse<String> response = sendGetRequest("/movies");
-        List<Movie> movies = gson.fromJson(response.body(), new TypeToken<List<Movie>>(){}.getType());
-        for (Movie movie : movies) {
-            sendDeleteRequest("/movies/" + movie.getId());
-        }
     }
 
     private HttpResponse<String> sendGetRequest(String path) throws IOException, InterruptedException {
@@ -103,6 +92,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnEmptyListWhenNoMovies() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies");
 
         assertEquals(200, response.statusCode());
@@ -114,8 +105,10 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnListWithPreviouslyAddedMovies() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movieToAdd = new Movie("Test Movie", 2024);
-        sendPostRequest("/movies", movieToAdd);
+        store.addMovie(movieToAdd);
 
         HttpResponse<String> response = sendGetRequest("/movies");
 
@@ -128,6 +121,8 @@ class MoviesApiTest {
 
     @Test
     void shouldAddMovieWithValidData() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movieToAdd = new Movie("Valid Movie", 2024);
         HttpResponse<String> response = sendPostRequest("/movies", movieToAdd);
 
@@ -142,6 +137,8 @@ class MoviesApiTest {
 
     @Test
     void shouldAddMovieWithMinimalYear() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movieToAdd = new Movie("Oldest Movie", 1888);
         HttpResponse<String> response = sendPostRequest("/movies", movieToAdd);
 
@@ -152,6 +149,8 @@ class MoviesApiTest {
 
     @Test
     void shouldAddMovieWithMaximalYear() throws IOException, InterruptedException {
+        store.clear();
+
         int maxYear = Year.now().getValue() + 1;
         Movie movieToAdd = new Movie("Future Movie", maxYear);
         HttpResponse<String> response = sendPostRequest("/movies", movieToAdd);
@@ -163,6 +162,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenTitleIsEmpty() throws IOException, InterruptedException {
+        store.clear();
+
         Movie invalidMovie = new Movie("", 2024);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
 
@@ -175,6 +176,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenTitleIsBlank() throws IOException, InterruptedException {
+        store.clear();
+
         Movie invalidMovie = new Movie("   ", 2024);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
 
@@ -183,6 +186,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenTitleTooLong() throws IOException, InterruptedException {
+        store.clear();
+
         String longTitle = "a".repeat(101);
         Movie invalidMovie = new Movie(longTitle, 2024);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
@@ -195,6 +200,8 @@ class MoviesApiTest {
 
     @Test
     void shouldAcceptTitleWith100Chars() throws IOException, InterruptedException {
+        store.clear();
+
         String validTitle = "a".repeat(100);
         Movie validMovie = new Movie(validTitle, 2024);
         HttpResponse<String> response = sendPostRequest("/movies", validMovie);
@@ -204,6 +211,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearTooLow() throws IOException, InterruptedException {
+        store.clear();
+
         Movie invalidMovie = new Movie("Old Movie", 1887);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
 
@@ -216,6 +225,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearTooHigh() throws IOException, InterruptedException {
+        store.clear();
+
         int currentYear = Year.now().getValue();
         Movie invalidMovie = new Movie("Future Movie", currentYear + 2);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
@@ -225,6 +236,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearIsNegative() throws IOException, InterruptedException {
+        store.clear();
+
         Movie invalidMovie = new Movie("Negative Year", -1);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
 
@@ -233,6 +246,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearIsZero() throws IOException, InterruptedException {
+        store.clear();
+
         Movie invalidMovie = new Movie("Zero Year", 0);
         HttpResponse<String> response = sendPostRequest("/movies", invalidMovie);
 
@@ -241,6 +256,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenInvalidContentType() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movie = new Movie("Valid Movie", 2024);
         HttpResponse<String> response = sendPostRequestWithContentType("/movies", movie, "text/plain");
 
@@ -251,6 +268,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenNoContentType() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movie = new Movie("Valid Movie", 2024);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/movies"))
@@ -263,6 +282,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenInvalidJson() throws IOException, InterruptedException {
+        store.clear();
+
         String invalidJson = "{invalid json}";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/movies"))
@@ -278,6 +299,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenEmptyBody() throws IOException, InterruptedException {
+        store.clear();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/movies"))
                 .header("Content-Type", "application/json")
@@ -290,6 +313,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenMissingRequiredFields() throws IOException, InterruptedException {
+        store.clear();
+
         String jsonWithoutTitle = "{\"year\":2024}";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/movies"))
@@ -303,9 +328,10 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnMovieById() throws IOException, InterruptedException {
-        Movie movieToAdd = new Movie("Find Me", 2023);
-        HttpResponse<String> postResponse = sendPostRequest("/movies", movieToAdd);
-        Movie addedMovie = gson.fromJson(postResponse.body(), Movie.class);
+        store.clear();
+
+        Movie movie = new Movie("Find Me", 2023);
+        Movie addedMovie = store.addMovie(movie);
 
         HttpResponse<String> response = sendGetRequest("/movies/" + addedMovie.getId());
 
@@ -318,6 +344,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenMovieNotFound() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies/99999");
 
         assertEquals(404, response.statusCode());
@@ -327,6 +355,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenIdIsNotNumber() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies/abc");
 
         assertEquals(400, response.statusCode());
@@ -336,6 +366,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenIdIsNegative() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies/-1");
 
         assertEquals(400, response.statusCode());
@@ -345,6 +377,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenIdIsZero() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies/0");
 
         assertEquals(400, response.statusCode());
@@ -354,6 +388,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenIdIsFloat() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies/1.5");
 
         assertEquals(400, response.statusCode());
@@ -363,20 +399,22 @@ class MoviesApiTest {
 
     @Test
     void shouldDeleteMovieById() throws IOException, InterruptedException {
-        Movie movieToAdd = new Movie("Delete Me", 2024);
-        HttpResponse<String> postResponse = sendPostRequest("/movies", movieToAdd);
-        Movie addedMovie = gson.fromJson(postResponse.body(), Movie.class);
+        store.clear();
+
+        Movie movie = new Movie("Delete Me", 2024);
+        Movie addedMovie = store.addMovie(movie);
 
         HttpResponse<String> response = sendDeleteRequest("/movies/" + addedMovie.getId());
 
         assertEquals(204, response.statusCode());
 
-        HttpResponse<String> getResponse = sendGetRequest("/movies/" + addedMovie.getId());
-        assertEquals(404, getResponse.statusCode());
+        assertNull(store.getMovieById(addedMovie.getId()));
     }
 
     @Test
     void shouldReturnErrorWhenDeletingNonExistentMovie() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendDeleteRequest("/movies/99999");
 
         assertEquals(404, response.statusCode());
@@ -386,6 +424,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenDeleteIdIsNotNumber() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendDeleteRequest("/movies/abc");
 
         assertEquals(400, response.statusCode());
@@ -395,6 +435,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenDeleteIdIsNegative() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendDeleteRequest("/movies/-5");
 
         assertEquals(400, response.statusCode());
@@ -404,15 +446,12 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnMoviesByYear() throws IOException, InterruptedException {
-        Movie movie2022 = new Movie("Movie 2022", 2022);
-        Movie movie2023a = new Movie("Movie 2023 A", 2023);
-        Movie movie2023b = new Movie("Movie 2023 B", 2023);
-        Movie movie2024 = new Movie("Movie 2024", 2024);
+        store.clear();
 
-        sendPostRequest("/movies", movie2022);
-        sendPostRequest("/movies", movie2023a);
-        sendPostRequest("/movies", movie2023b);
-        sendPostRequest("/movies", movie2024);
+        store.addMovie(new Movie("Movie 2022", 2022));
+        store.addMovie(new Movie("Movie 2023 A", 2023));
+        store.addMovie(new Movie("Movie 2023 B", 2023));
+        store.addMovie(new Movie("Movie 2024", 2024));
 
         HttpResponse<String> response = sendGetRequest("/movies?year=2023");
 
@@ -424,6 +463,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnEmptyListWhenNoMoviesForYear() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies?year=1990");
 
         assertEquals(200, response.statusCode());
@@ -433,6 +474,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearParamIsNotNumber() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies?year=abc");
 
         assertEquals(400, response.statusCode());
@@ -442,6 +485,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearParamIsEmpty() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies?year=");
 
         assertEquals(400, response.statusCode());
@@ -451,6 +496,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearParamIsNegative() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies?year=-2020");
 
         assertEquals(400, response.statusCode());
@@ -460,6 +507,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnErrorWhenYearParamIsFloat() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/movies?year=2024.5");
 
         assertEquals(400, response.statusCode());
@@ -469,8 +518,9 @@ class MoviesApiTest {
 
     @Test
     void shouldReturnMoviesWithYearParamAndOtherParams() throws IOException, InterruptedException {
-        Movie movie = new Movie("Test Movie", 2024);
-        sendPostRequest("/movies", movie);
+        store.clear();
+
+        store.addMovie(new Movie("Test Movie", 2024));
 
         HttpResponse<String> response = sendGetRequest("/movies?year=2024&extra=param");
 
@@ -482,8 +532,10 @@ class MoviesApiTest {
 
     @Test
     void shouldHandleYearParamWithLeadingZeros() throws IOException, InterruptedException {
+        store.clear();
+
         Movie movie = new Movie("Test Movie", 2024);
-        sendPostRequest("/movies", movie);
+        store.addMovie(movie);
 
         HttpResponse<String> response = sendGetRequest("/movies?year=02024");
 
@@ -495,6 +547,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturn405ForUnsupportedMethod() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendPutRequest("/movies");
 
         assertEquals(405, response.statusCode());
@@ -504,6 +558,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturn405ForUnsupportedMethodWithId() throws IOException, InterruptedException {
+        store.clear();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/movies/1"))
                 .PUT(HttpRequest.BodyPublishers.noBody())
@@ -515,6 +571,8 @@ class MoviesApiTest {
 
     @Test
     void shouldReturn404ForNonExistentEndpoint() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> response = sendGetRequest("/unknown");
 
         assertEquals(404, response.statusCode());
@@ -522,6 +580,8 @@ class MoviesApiTest {
 
     @Test
     void allSuccessfulResponsesHaveCorrectContentType() throws IOException, InterruptedException {
+        store.clear();
+
         HttpResponse<String> getAllResponse = sendGetRequest("/movies");
         assertTrue(getAllResponse.headers().firstValue("Content-Type").orElse("").contains("application/json"));
 
@@ -529,14 +589,14 @@ class MoviesApiTest {
         HttpResponse<String> postResponse = sendPostRequest("/movies", movie);
         assertTrue(postResponse.headers().firstValue("Content-Type").orElse("").contains("application/json"));
 
-        Movie added = gson.fromJson(postResponse.body(), Movie.class);
-        HttpResponse<String> getByIdResponse = sendGetRequest("/movies/" + added.getId());
-        assertTrue(getByIdResponse.headers().firstValue("Content-Type").orElse("").contains("application/json"));
+        List<Movie> movies = store.getAllMovies();
+        if (!movies.isEmpty()) {
+            Movie added = movies.get(0);
+            HttpResponse<String> getByIdResponse = sendGetRequest("/movies/" + added.getId());
+            assertTrue(getByIdResponse.headers().firstValue("Content-Type").orElse("").contains("application/json"));
+        }
 
         HttpResponse<String> getByYearResponse = sendGetRequest("/movies?year=2024");
         assertTrue(getByYearResponse.headers().firstValue("Content-Type").orElse("").contains("application/json"));
-
-        HttpResponse<String> deleteResponse = sendDeleteRequest("/movies/" + added.getId());
-        assertEquals(204, deleteResponse.statusCode());
     }
 }

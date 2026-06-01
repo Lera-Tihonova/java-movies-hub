@@ -16,6 +16,12 @@ public class MoviesServer {
         server.createContext("/movies", new MoviesHandler(store));
     }
 
+    public MoviesServer(int port, MoviesStore store) throws IOException {
+        this.store = store;
+        this.server = HttpServer.create(new InetSocketAddress(port), 0);
+        server.createContext("/movies", new MoviesHandler(store));
+    }
+
     public void start() {
         server.start();
         System.out.println("Movies server started on port 8080");
@@ -23,5 +29,9 @@ public class MoviesServer {
 
     public void stop() {
         server.stop(0);
+    }
+
+    public MoviesStore getStore() {
+        return store;
     }
 }

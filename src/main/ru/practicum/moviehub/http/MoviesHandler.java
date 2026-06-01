@@ -28,6 +28,7 @@ public class MoviesHandler extends BaseHttpHandler {
         System.out.println("Request: " + method + " " + path + (query != null ? "?" + query : ""));
 
         try {
+            // GET /movies с query параметрами
             if ("GET".equals(method) && "/movies".equals(path) && query != null) {
                 if (query.startsWith("year=") || query.contains("&year=")) {
                     String yearValue = extractYearValue(query);
@@ -38,23 +39,35 @@ public class MoviesHandler extends BaseHttpHandler {
                 return;
             }
 
+            // GET /movies
             if ("GET".equals(method) && "/movies".equals(path)) {
                 handleGetAllMovies(exchange);
                 return;
             }
 
+            // POST /movies
             if ("POST".equals(method) && "/movies".equals(path)) {
                 handlePostMovie(exchange);
                 return;
             }
 
+            // Обработка /movies/{id}
             Pattern pattern = Pattern.compile("/movies/([^/]+)");
             Matcher matcher = pattern.matcher(path);
 
             if (matcher.matches()) {
                 String idStr = matcher.group(1);
 
-                if (!isNumeric(idStr)) {
+                OptionalInt optionalId = parseId(idStr);
+                if (optionalId.isEmpty()) {
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "Некорректный ID");
+                    sendJson(exchange, 400, error);
+                    return;
+                }
+
+                int id = optionalId.getAsInt();
+                if (id <= 0) {
                     Map<String, String> error = new HashMap<>();
                     error.put("error", "Некорректный ID");
                     sendJson(exchange, 400, error);
@@ -62,11 +75,11 @@ public class MoviesHandler extends BaseHttpHandler {
                 }
 
                 if ("GET".equals(method)) {
-                    handleGetMovieById(exchange, idStr);
+                    handleGetMovieById(exchange, id);
                     return;
                 }
                 if ("DELETE".equals(method)) {
-                    handleDeleteMovie(exchange, idStr);
+                    handleDeleteMovie(exchange, id);
                     return;
                 }
                 Map<String, String> error = new HashMap<>();
@@ -94,11 +107,26 @@ public class MoviesHandler extends BaseHttpHandler {
         }
     }
 
-    private boolean isNumeric(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
+    private OptionalInt parseId(String idStr) {
+        if (idStr == null || idStr.isEmpty()) {
+            return OptionalInt.empty();
         }
-        return str.matches("-?\\d+");
+        try {
+            return OptionalInt.of(Integer.parseInt(idStr));
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
+    }
+
+    private OptionalInt parseYear(String yearParam) {
+        if (yearParam == null || yearParam.isEmpty()) {
+            return OptionalInt.empty();
+        }
+        try {
+            return OptionalInt.of(Integer.parseInt(yearParam));
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
     }
 
     private String extractYearValue(String query) {
@@ -129,21 +157,24 @@ public class MoviesHandler extends BaseHttpHandler {
             return;
         }
 
-        try {
-            int year = Integer.parseInt(yearParam);
-            if (year < 0) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Некорректный параметр запроса — 'year'");
-                sendJson(exchange, 400, error);
-                return;
-            }
-            List<Movie> movies = store.getMoviesByYear(year);
-            sendJson(exchange, 200, movies);
-        } catch (NumberFormatException e) {
+        OptionalInt optionalYear = parseYear(yearParam);
+        if (optionalYear.isEmpty()) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Некорректный параметр запроса — 'year'");
             sendJson(exchange, 400, error);
+            return;
         }
+
+        int year = optionalYear.getAsInt();
+        if (year < 0) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Некорректный параметр запроса — 'year'");
+            sendJson(exchange, 400, error);
+            return;
+        }
+
+        List<Movie> movies = store.getMoviesByYear(year);
+        sendJson(exchange, 200, movies);
     }
 
     private void handlePostMovie(HttpExchange exchange) throws IOException {
@@ -193,51 +224,25 @@ public class MoviesHandler extends BaseHttpHandler {
         sendJson(exchange, 201, createdMovie);
     }
 
-    private void handleGetMovieById(HttpExchange exchange, String idStr) throws IOException {
-        try {
-            int id = Integer.parseInt(idStr);
-            if (id <= 0) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Некорректный ID");
-                sendJson(exchange, 400, error);
-                return;
-            }
-            Movie movie = store.getMovieById(id);
-            if (movie != null) {
-                sendJson(exchange, 200, movie);
-            } else {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Фильм не найден");
-                sendJson(exchange, 404, error);
-            }
-        } catch (NumberFormatException e) {
+    private void handleGetMovieById(HttpExchange exchange, int id) throws IOException {
+        Movie movie = store.getMovieById(id);
+        if (movie != null) {
+            sendJson(exchange, 200, movie);
+        } else {
             Map<String, String> error = new HashMap<>();
-            error.put("error", "Некорректный ID");
-            sendJson(exchange, 400, error);
+            error.put("error", "Фильм не найден");
+            sendJson(exchange, 404, error);
         }
     }
 
-    private void handleDeleteMovie(HttpExchange exchange, String idStr) throws IOException {
-        try {
-            int id = Integer.parseInt(idStr);
-            if (id <= 0) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Некорректный ID");
-                sendJson(exchange, 400, error);
-                return;
-            }
-            boolean deleted = store.deleteMovie(id);
-            if (deleted) {
-                sendNoContent(exchange);
-            } else {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Фильм не найден");
-                sendJson(exchange, 404, error);
-            }
-        } catch (NumberFormatException e) {
+    private void handleDeleteMovie(HttpExchange exchange, int id) throws IOException {
+        boolean deleted = store.deleteMovie(id);
+        if (deleted) {
+            sendNoContent(exchange);
+        } else {
             Map<String, String> error = new HashMap<>();
-            error.put("error", "Некорректный ID");
-            sendJson(exchange, 400, error);
+            error.put("error", "Фильм не найден");
+            sendJson(exchange, 404, error);
         }
     }
 
